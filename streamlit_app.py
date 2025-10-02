@@ -1,8 +1,11 @@
 import streamlit as st
 import pandas as pd
 from deep_translator import GoogleTranslator
+import time
 
-# Sprach-Mapping: Deutsch → Sprachcode
+# ------------------------
+# Sprach-Mapping Deutsch → ISO-Codes
+# ------------------------
 LANGUAGES = {
     "Englisch": "en",
     "Französisch": "fr",
@@ -11,129 +14,131 @@ LANGUAGES = {
     "Niederländisch": "nl",
     "Polnisch": "pl",
     "Türkisch": "tr",
-    "Russisch": "ru",
     "Arabisch": "ar",
     "Chinesisch": "zh-CN",
     "Japanisch": "ja",
+    "Russisch": "ru",
     "Portugiesisch": "pt",
-    "Griechisch": "el",
-    "Schwedisch": "sv",
-    "Dänisch": "da",
-    "Finnisch": "fi",
-    "Ungarisch": "hu",
+    "Deutsch": "de"
 }
 
-# 🎨 Streamlit Design
-st.set_page_config(page_title="🌍 Produkt Übersetzer", layout="wide")
-st.markdown(
-    """
-    <style>
-    .stApp {
-        background-color: #f9fafc;
-    }
-    .main-title {
-        text-align: center;
-        color: #1f4e79;
-        font-size: 36px;
-        font-weight: bold;
-    }
-    .subtitle {
-        text-align: center;
-        color: #4b5563;
-        font-size: 18px;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+# ------------------------
+# Streamlit Tabs
+# ------------------------
+st.set_page_config(page_title="Excel Übersetzer", layout="wide")
+tabs = st.tabs(["📂 Datei Upload", "⚙️ Optionen", "📊 Ergebnis"])
 
-# Titel
-st.markdown('<p class="main-title">🌍 Produkt-Übersetzer Tool</p>', unsafe_allow_html=True)
-st.markdown('<p class="subtitle">Übersetze deine Excel Produktdaten mit Stil, SEO & HTML-Optionen</p>', unsafe_allow_html=True)
-
-# Tabs
-tab1, tab2, tab3 = st.tabs(["📂 Datei Upload", "⚙️ Optionen", "📊 Ergebnis"])
-
-with tab1:
+# ------------------------
+# Tab 1: Datei Upload
+# ------------------------
+with tabs[0]:
     st.header("📂 Lade deine Excel-Datei hoch")
-    uploaded_file = st.file_uploader("Excel-Datei hochladen", type=["xlsx"])
+    uploaded_file = st.file_uploader("Excel-Datei auswählen", type=["xlsx"])
+
     if uploaded_file:
         df = pd.read_excel(uploaded_file)
-        st.success("✅ Datei erfolgreich geladen!")
+        st.session_state["df"] = df
+        st.success("✅ Datei erfolgreich hochgeladen")
         st.dataframe(df.head())
 
-with tab2:
+# ------------------------
+# Tab 2: Optionen
+# ------------------------
+with tabs[1]:
     st.header("⚙️ Optionen für die Übersetzung")
 
-    if uploaded_file:
-        df = pd.read_excel(uploaded_file)
+    if "df" in st.session_state:
+        df = st.session_state["df"]
 
-        # Spaltenauswahl
-        column_to_translate = st.selectbox("📌 Wähle die Spalte, die übersetzt werden soll:", df.columns)
+        # Spalte wählen
+        column = st.selectbox("📌 Wähle die Spalte, die übersetzt werden soll:", df.columns)
+        st.session_state["column"] = column
 
         # Zielsprachen
-        target_languages = st.multiselect(
-            "🌐 In welche Sprachen soll übersetzt werden?",
-            list(LANGUAGES.keys())
-        )
+        target_languages = st.multiselect("🌍 In welche Sprachen soll übersetzt werden?",
+                                          list(LANGUAGES.keys()))
+        st.session_state["target_languages"] = target_languages
 
-        # Schreibstil
-        tone = st.radio(
-            "🎯 Schreibstil auswählen",
-            ["Sachlich", "Marketing-orientiert"]
-        )
+        # Stil
+        tone = st.radio("🎨 Schreibstil wählen:", ["Sachlich", "Marketing-orientiert"])
+        st.session_state["tone"] = tone
 
-        # SEO-Option
-        seo_opt = st.checkbox("🔍 SEO-Optimierung aktivieren (wichtige Begriffe betonen)")
+        # SEO
+        seo = st.checkbox("🔍 SEO-Optimierung hinzufügen?")
+        st.session_state["seo"] = seo
 
-        # HTML-Ausgabe
-        html_opt = st.checkbox("📝 HTML-Version in einer zusätzlichen Spalte speichern")
+        # Blacklist
+        blacklist = st.text_area("🚫 Wörter, die NICHT in der Übersetzung vorkommen sollen (durch Komma trennen):")
+        st.session_state["blacklist"] = [w.strip() for w in blacklist.split(",")] if blacklist else []
 
-        start_translation = st.button("🚀 Übersetzen starten")
+        # HTML Option
+        html_option = st.checkbox("📄 Übersetzung zusätzlich als HTML in neuer Spalte speichern?")
+        st.session_state["html_option"] = html_option
 
-with tab3:
-    st.header("📊 Ergebnisse & Download")
+        # Start Button
+        if st.button("🚀 Übersetzung starten"):
+            st.session_state["translate"] = True
+            st.experimental_set_query_params(tab="Ergebnis")  # Automatisch zu Ergebnis springen
 
-    if uploaded_file and "start_translation" in locals() and start_translation:
-        df = pd.read_excel(uploaded_file)
+# ------------------------
+# Tab 3: Ergebnis
+# ------------------------
+with tabs[2]:
+    st.header("📊 Ergebnis der Übersetzung")
 
-        for lang in target_languages:
-            lang_code = LANGUAGES[lang]
+    if st.session_state.get("translate", False) and "df" in st.session_state:
+        df = st.session_state["df"]
+        column = st.session_state["column"]
+        target_languages = st.session_state["target_languages"]
 
-            def process_text(x):
-                if pd.isna(x):
-                    return ""
+        progress = st.progress(0)
+        result_df = df.copy()
 
-                # Übersetzen
-                translated = GoogleTranslator(source="auto", target=lang_code).translate(str(x))
+        total = len(df) * len(target_languages)
+        count = 0
 
-                # Marketing Ton
-                if tone == "Marketing-orientiert":
-                    translated = f"✨ {translated}. Jetzt entdecken!"
+        for lang_name in target_languages:
+            lang_code = LANGUAGES[lang_name]
+            translations = []
 
-                # SEO
-                if seo_opt:
-                    translated += " | Top Qualität, jetzt online bestellen!"
+            for text in df[column].astype(str):
+                try:
+                    trans = GoogleTranslator(source="auto", target=lang_code).translate(text)
 
-                return translated
+                    # Blacklist Wörter entfernen
+                    for bad_word in st.session_state["blacklist"]:
+                        trans = trans.replace(bad_word, "")
 
-            # Neue Spalte
-            df[f"{column_to_translate}_{lang}"] = df[column_to_translate].apply(process_text)
+                    # Marketing-Ton / SEO (einfaches Beispiel)
+                    if st.session_state["tone"] == "Marketing-orientiert":
+                        trans = "🌟 " + trans
+                    if st.session_state["seo"]:
+                        trans += " ⭐"
+
+                    translations.append(trans)
+                except Exception as e:
+                    translations.append(f"Fehler: {e}")
+
+                count += 1
+                progress.progress(int((count / total) * 100))
+
+            # Neue Spalte mit Übersetzung
+            result_df[f"Übersetzt ({lang_name})"] = translations
 
             # Optional HTML
-            if html_opt:
-                df[f"{column_to_translate}_{lang}_HTML"] = df[f"{column_to_translate}_{lang}"].apply(
-                    lambda txt: f"<p>{txt}</p>"
-                )
+            if st.session_state["html_option"]:
+                html_translations = [f"<p>{t}</p>" for t in translations]
+                result_df[f"HTML ({lang_name})"] = html_translations
 
-        # Speichern
+        st.success("✅ Übersetzung abgeschlossen!")
+        st.dataframe(result_df.head())
+
+        # Ergebnis speichern
         output_file = "translated.xlsx"
-        df.to_excel(output_file, index=False)
-
-        # Ergebnis anzeigen
-        st.dataframe(df.head())
+        result_df.to_excel(output_file, index=False)
 
         with open(output_file, "rb") as f:
             st.download_button("📥 Übersetzte Datei herunterladen", f, file_name=output_file)
 
-        st.success("✅ Übersetzung abgeschlossen!")
+    else:
+        st.info("ℹ️ Bitte zuerst eine Datei hochladen und Optionen auswählen.")
