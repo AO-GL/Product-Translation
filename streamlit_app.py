@@ -3,7 +3,7 @@ import pandas as pd
 import re
 from deep_translator import GoogleTranslator
 
-# Sprachmapping (Deutsch -> Kürzel)
+# Sprachmapping
 LANGUAGE_MAP = {
     "Englisch": "en",
     "Französisch": "fr",
@@ -14,20 +14,14 @@ LANGUAGE_MAP = {
     "Türkisch": "tr"
 }
 
-# Funktion zum Bereinigen von Text (keine Emojis, Sterne, etc.)
 def clean_text(text):
     if not isinstance(text, str):
         return ""
     text = re.sub(r'[^\w\s.,!?;:()\'\"-]', '', text)
     return text.strip()
 
-# =====================
-# Grundkonfiguration
-# =====================
+# Konfiguration
 st.set_page_config(page_title="Produkt Übersetzer", layout="wide")
-
-# Tabs
-tabs = st.tabs(["📂 Datei Upload", "⚙️ Optionen", "📊 Ergebnis"])
 
 # Session States
 if "df" not in st.session_state:
@@ -35,50 +29,40 @@ if "df" not in st.session_state:
 if "translated_df" not in st.session_state:
     st.session_state.translated_df = None
 if "active_tab" not in st.session_state:
-    st.session_state.active_tab = 0  # 0=Upload, 1=Optionen, 2=Ergebnis
+    st.session_state.active_tab = "upload"  # "upload", "options", "result"
+
+# Navigation Tabs
+menu = st.tabs(["📂 Datei Upload", "⚙️ Optionen", "📊 Ergebnis"])
 
 # =====================
-# TAB 1: Datei Upload
+# TAB Upload
 # =====================
-with tabs[0]:
-    st.header("📂 Excel Datei hochladen")
-    uploaded_file = st.file_uploader("Lade eine Excel Datei hoch", type=["xlsx"])
-    if uploaded_file:
-        st.session_state.df = pd.read_excel(uploaded_file)
-        st.success("✅ Datei erfolgreich hochgeladen")
-        st.write("Vorschau:", st.session_state.df.head())
-        st.session_state.active_tab = 1  # Springt nach Upload automatisch zu Optionen
+with menu[0]:
+    if st.session_state.active_tab == "upload":
+        st.header("📂 Excel Datei hochladen")
+        uploaded_file = st.file_uploader("Lade eine Excel Datei hoch", type=["xlsx"])
+        if uploaded_file:
+            st.session_state.df = pd.read_excel(uploaded_file)
+            st.success("✅ Datei erfolgreich hochgeladen")
+            st.write("Vorschau:", st.session_state.df.head())
+            st.session_state.active_tab = "options"
+            st.experimental_rerun()
 
 # =====================
-# TAB 2: Optionen
+# TAB Optionen
 # =====================
-with tabs[1]:
-    st.header("⚙️ Optionen für die Übersetzung")
+with menu[1]:
+    if st.session_state.active_tab == "options" and st.session_state.df is not None:
+        st.header("⚙️ Optionen für die Übersetzung")
 
-    if st.session_state.df is not None:
-        # Spaltenauswahl
         column = st.selectbox("📌 Wähle die Spalte, die übersetzt werden soll:", st.session_state.df.columns)
-
-        # Zielsprachen
-        target_languages = st.multiselect(
-            "🌍 In welche Sprachen soll übersetzt werden?",
-            list(LANGUAGE_MAP.keys())
-        )
-
-        # Schreibstil
+        target_languages = st.multiselect("🌍 In welche Sprachen soll übersetzt werden?", list(LANGUAGE_MAP.keys()))
         tone = st.radio("📝 Schreibstil wählen:", ["Sachlich", "Marketing-orientiert"])
-
-        # SEO-Option
         seo = st.checkbox("🔍 SEO-Optimierung hinzufügen?")
-
-        # Blacklist
         blacklist_input = st.text_area("🚫 Wörter, die NICHT in der Übersetzung vorkommen sollen (durch Komma trennen):")
         blacklist = [w.strip() for w in blacklist_input.split(",") if w.strip()]
-
-        # HTML-Option
         html_option = st.checkbox("📄 Übersetzung zusätzlich als HTML in neuer Spalte speichern?")
 
-        # Übersetzung starten
         if st.button("🚀 Übersetzung starten"):
             df = st.session_state.df.copy()
             progress = st.progress(0)
@@ -89,19 +73,15 @@ with tabs[1]:
 
                 for lang_name in target_languages:
                     lang_code = LANGUAGE_MAP[lang_name]
-
                     try:
                         translated = GoogleTranslator(source="de", target=lang_code).translate(cleaned_text)
 
-                        # Blacklist entfernen
                         for bad_word in blacklist:
                             translated = translated.replace(bad_word, "")
 
-                        # Neue Spalte hinzufügen
                         col_name = f"Übersetzt ({lang_name})"
                         df.loc[i, col_name] = translated
 
-                        # HTML-Version optional
                         if html_option:
                             col_html = f"Übersetzt HTML ({lang_name})"
                             df.loc[i, col_html] = f"<p>{translated}</p>"
@@ -109,35 +89,22 @@ with tabs[1]:
                     except Exception as e:
                         st.warning(f"⚠️ Fehler bei Zeile {i+1}: {e}")
 
-                # Fortschritt aktualisieren
                 progress.progress(int(((i+1)/total)*100))
 
             st.session_state.translated_df = df
-            st.session_state.active_tab = 2  # Nach Fertigstellung zum Ergebnis springen
+            st.session_state.active_tab = "result"
+            st.experimental_rerun()
 
 # =====================
-# TAB 3: Ergebnis
+# TAB Ergebnis
 # =====================
-with tabs[2]:
-    st.header("📊 Ergebnis der Übersetzung")
-
-    if st.session_state.translated_df is not None:
+with menu[2]:
+    if st.session_state.active_tab == "result" and st.session_state.translated_df is not None:
+        st.header("📊 Ergebnis der Übersetzung")
         st.write("✅ Übersetzte Tabelle:")
         st.dataframe(st.session_state.translated_df)
 
-        # Download
         output_file = "translated.xlsx"
         st.session_state.translated_df.to_excel(output_file, index=False)
         with open(output_file, "rb") as f:
             st.download_button("📥 Übersetzte Datei herunterladen", f, file_name=output_file)
-    else:
-        st.info("Noch keine Übersetzungen vorhanden.")
-
-# =====================
-# Automatischer Tab-Wechsel
-# =====================
-# Nutzt die Session-Variable, kein experimental_rerun mehr!
-if st.session_state.active_tab == 1:
-    st.write('<meta http-equiv="refresh" content="0; url=#⚙️-optionen">', unsafe_allow_html=True)
-elif st.session_state.active_tab == 2:
-    st.write('<meta http-equiv="refresh" content="0; url=#📊-ergebnis">', unsafe_allow_html=True)
