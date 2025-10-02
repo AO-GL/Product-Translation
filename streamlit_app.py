@@ -162,3 +162,4 @@ with tab3:
                 st.download_button("📥 Übersetzte Datei herunterladen", f, file_name=output_file)
     else:
         st.info("⬅️ Bitte zuerst eine Datei hochladen und Optionen auswählen.")
+
