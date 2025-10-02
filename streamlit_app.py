@@ -18,25 +18,24 @@ LANGUAGE_MAP = {
 def clean_text(text):
     if not isinstance(text, str):
         return ""
-    text = re.sub(r'[^\w\s.,!?;:()\'\"-]', '', text)  # Emojis & Sonderzeichen entfernen
+    text = re.sub(r'[^\w\s.,!?;:()\'\"-]', '', text)
     return text.strip()
 
 # =====================
-# Session State Setup
+# Grundkonfiguration
 # =====================
+st.set_page_config(page_title="Produkt Übersetzer", layout="wide")
+
+# Tabs
+tabs = st.tabs(["📂 Datei Upload", "⚙️ Optionen", "📊 Ergebnis"])
+
+# Session States
 if "df" not in st.session_state:
     st.session_state.df = None
 if "translated_df" not in st.session_state:
     st.session_state.translated_df = None
 if "active_tab" not in st.session_state:
-    st.session_state.active_tab = 0  # Start: Tab 1
-
-# =====================
-# Tab-Steuerung
-# =====================
-tab_labels = ["📂 Datei Upload", "⚙️ Optionen", "📊 Ergebnis"]
-active_tab = st.session_state.active_tab
-tabs = st.tabs(tab_labels)
+    st.session_state.active_tab = 0  # 0=Upload, 1=Optionen, 2=Ergebnis
 
 # =====================
 # TAB 1: Datei Upload
@@ -48,6 +47,7 @@ with tabs[0]:
         st.session_state.df = pd.read_excel(uploaded_file)
         st.success("✅ Datei erfolgreich hochgeladen")
         st.write("Vorschau:", st.session_state.df.head())
+        st.session_state.active_tab = 1  # Springt nach Upload automatisch zu Optionen
 
 # =====================
 # TAB 2: Optionen
@@ -113,10 +113,7 @@ with tabs[1]:
                 progress.progress(int(((i+1)/total)*100))
 
             st.session_state.translated_df = df
-
-            # 👉 automatisch Ergebnis-Tab öffnen
-            st.session_state.active_tab = 2
-            st.experimental_rerun()
+            st.session_state.active_tab = 2  # Nach Fertigstellung zum Ergebnis springen
 
 # =====================
 # TAB 3: Ergebnis
@@ -133,3 +130,14 @@ with tabs[2]:
         st.session_state.translated_df.to_excel(output_file, index=False)
         with open(output_file, "rb") as f:
             st.download_button("📥 Übersetzte Datei herunterladen", f, file_name=output_file)
+    else:
+        st.info("Noch keine Übersetzungen vorhanden.")
+
+# =====================
+# Automatischer Tab-Wechsel
+# =====================
+# Nutzt die Session-Variable, kein experimental_rerun mehr!
+if st.session_state.active_tab == 1:
+    st.write('<meta http-equiv="refresh" content="0; url=#⚙️-optionen">', unsafe_allow_html=True)
+elif st.session_state.active_tab == 2:
+    st.write('<meta http-equiv="refresh" content="0; url=#📊-ergebnis">', unsafe_allow_html=True)
