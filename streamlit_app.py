@@ -2,66 +2,163 @@ import streamlit as st
 import pandas as pd
 from deep_translator import GoogleTranslator
 
-# Sprachliste (wie von dir gewünscht)
-languages = {
-    'afrikaans': 'af', 'albanian': 'sq', 'amharic': 'am', 'arabic': 'ar', 'armenian': 'hy',
-    'assamese': 'as', 'aymara': 'ay', 'azerbaijani': 'az', 'bambara': 'bm', 'basque': 'eu',
-    'belarusian': 'be', 'bengali': 'bn', 'bhojpuri': 'bho', 'bosnian': 'bs', 'bulgarian': 'bg',
-    'catalan': 'ca', 'cebuano': 'ceb', 'chichewa': 'ny', 'chinese (simplified)': 'zh-CN',
-    'chinese (traditional)': 'zh-TW', 'corsican': 'co', 'croatian': 'hr', 'czech': 'cs',
-    'danish': 'da', 'dhivehi': 'dv', 'dogri': 'doi', 'dutch': 'nl', 'english': 'en',
-    'esperanto': 'eo', 'estonian': 'et', 'ewe': 'ee', 'filipino': 'tl', 'finnish': 'fi',
-    'french': 'fr', 'frisian': 'fy', 'galician': 'gl', 'georgian': 'ka', 'german': 'de',
-    'greek': 'el', 'guarani': 'gn', 'gujarati': 'gu', 'haitian creole': 'ht', 'hausa': 'ha',
-    'hawaiian': 'haw', 'hebrew': 'iw', 'hindi': 'hi', 'hmong': 'hmn', 'hungarian': 'hu',
-    'icelandic': 'is', 'igbo': 'ig', 'ilocano': 'ilo', 'indonesian': 'id', 'irish': 'ga',
-    'italian': 'it', 'japanese': 'ja', 'javanese': 'jw', 'kannada': 'kn', 'kazakh': 'kk',
-    'khmer': 'km', 'kinyarwanda': 'rw', 'konkani': 'gom', 'korean': 'ko', 'krio': 'kri',
-    'kurdish (kurmanji)': 'ku', 'kurdish (sorani)': 'ckb', 'kyrgyz': 'ky', 'lao': 'lo',
-    'latin': 'la', 'latvian': 'lv', 'lingala': 'ln', 'lithuanian': 'lt', 'luganda': 'lg',
-    'luxembourgish': 'lb', 'macedonian': 'mk', 'maithili': 'mai', 'malagasy': 'mg',
-    'malay': 'ms', 'malayalam': 'ml', 'maltese': 'mt', 'maori': 'mi', 'marathi': 'mr',
-    'meiteilon (manipuri)': 'mni-Mtei', 'mizo': 'lus', 'mongolian': 'mn', 'myanmar': 'my',
-    'nepali': 'ne', 'norwegian': 'no', 'odia (oriya)': 'or', 'oromo': 'om', 'pashto': 'ps',
-    'persian': 'fa', 'polish': 'pl', 'portuguese': 'pt', 'punjabi': 'pa', 'quechua': 'qu',
-    'romanian': 'ro', 'russian': 'ru', 'samoan': 'sm', 'sanskrit': 'sa', 'scots gaelic': 'gd',
-    'sepedi': 'nso', 'serbian': 'sr', 'sesotho': 'st', 'shona': 'sn', 'sindhi': 'sd',
-    'sinhala': 'si', 'slovak': 'sk', 'slovenian': 'sl', 'somali': 'so', 'spanish': 'es',
-    'sundanese': 'su', 'swahili': 'sw', 'swedish': 'sv', 'tajik': 'tg', 'tamil': 'ta',
-    'tatar': 'tt', 'telugu': 'te', 'thai': 'th', 'tigrinya': 'ti', 'tsonga': 'ts',
-    'turkish': 'tr', 'turkmen': 'tk', 'twi': 'ak', 'ukrainian': 'uk', 'urdu': 'ur',
-    'uyghur': 'ug', 'uzbek': 'uz', 'vietnamese': 'vi', 'welsh': 'cy', 'xhosa': 'xh',
-    'yiddish': 'yi', 'yoruba': 'yo', 'zulu': 'zu'
-}
+# -------------------------------
+# Hilfsfunktion für die Übersetzung
+# -------------------------------
+def translate_text(text, target_lang, tone, seo_enabled, seo_keywords, blacklist_words):
+    if not isinstance(text, str) or text.strip() == "":
+        return ""
 
-st.title("🌍 Excel Übersetzer Tool")
+    translated = GoogleTranslator(source="auto", target=target_lang).translate(text)
 
-uploaded_file = st.file_uploader("Lade eine Excel-Datei hoch", type=["xlsx"])
+    if tone == "marketing":
+        translated = f"{translated} 🚀✨"
+    elif tone == "sachlich":
+        translated = translated.replace("!", ".")
 
-if uploaded_file:
-    df = pd.read_excel(uploaded_file)
-    st.write("📊 Vorschau deiner Datei:", df.head())
+    if seo_enabled and seo_keywords:
+        translated += " " + " ".join(seo_keywords)
 
-    column = st.selectbox("Wähle die Spalte, die übersetzt werden soll", df.columns)
-    target_langs = st.multiselect("Wähle Zielsprachen", list(languages.keys()))
+    for word in blacklist_words:
+        translated = translated.replace(word, "")
 
-    if st.button("Übersetzen starten"):
-        if not target_langs:
-            st.warning("Bitte wähle mindestens eine Sprache aus.")
-        else:
-            for lang in target_langs:
-                lang_code = languages[lang]
-                new_col = f"{column}_{lang_code}"
-                st.write(f"Übersetze nach {lang}...")
-                try:
-                    df[new_col] = df[column].astype(str).apply(lambda x: GoogleTranslator(source='auto', target=lang_code).translate(x) if x.strip() else x)
-                except Exception as e:
-                    st.error(f"Fehler bei {lang}: {e}")
+    return translated
+
+
+# -------------------------------
+# Streamlit App Einstellungen
+# -------------------------------
+st.set_page_config(page_title="🌍 Produkt-Übersetzer", layout="wide")
+
+# -------------------------------
+# Custom CSS Styles
+# -------------------------------
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background: linear-gradient(to right, #f9f9f9, #eef3f7);
+        font-family: 'Segoe UI', sans-serif;
+    }
+    h1 {
+        color: #2c3e50;
+        text-align: center;
+        font-weight: 800;
+    }
+    button[kind="secondary"], .stButton>button {
+        background-color: #3498db;
+        color: white;
+        border-radius: 10px;
+        padding: 0.6em 1.2em;
+        font-weight: 600;
+        transition: 0.3s;
+    }
+    button[kind="secondary"]:hover, .stButton>button:hover {
+        background-color: #1abc9c;
+        transform: scale(1.05);
+    }
+    .stDataFrame {
+        border: 2px solid #3498db;
+        border-radius: 10px;
+        padding: 5px;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# -------------------------------
+# Tabs
+# -------------------------------
+tab1, tab2, tab3 = st.tabs(["📂 Datei Upload", "⚙️ Optionen", "📊 Ergebnis"])
+
+# -------------------------------
+# Tab 1 – Datei Upload
+# -------------------------------
+with tab1:
+    st.title("📂 Lade deine Excel-Datei hoch")
+    uploaded_file = st.file_uploader("Bitte wähle eine Datei aus", type=["xlsx"])
+
+    if uploaded_file:
+        df = pd.read_excel(uploaded_file)
+        st.success(f"✅ Datei geladen: **{uploaded_file.name}**")
+        with st.expander("👀 Vorschau der Daten"):
+            st.dataframe(df.head())
+
+        st.session_state["df"] = df
+        st.session_state["uploaded_file"] = uploaded_file
+
+# -------------------------------
+# Tab 2 – Optionen
+# -------------------------------
+with tab2:
+    st.title("⚙️ Optionen für die Übersetzung")
+
+    if "df" in st.session_state:
+        df = st.session_state["df"]
+
+        selected_column = st.selectbox("📌 Wähle die Spalte, die übersetzt werden soll:", df.columns)
+
+        languages = st.multiselect(
+            "🌐 In welche Sprachen soll übersetzt werden?",
+            ["en", "fr", "es", "it", "nl", "pl", "tr"],
+            default=["en"]
+        )
+
+        tone = st.radio("🎭 Welchen Tonfall sollen die Übersetzungen haben?", ("sachlich", "marketing"))
+
+        seo_enabled = st.checkbox("📈 Soll der Text SEO-optimiert werden?")
+        seo_keywords = []
+        if seo_enabled:
+            keywords_input = st.text_input("🔑 Gib SEO-Keywords ein (Komma-getrennt)")
+            if keywords_input:
+                seo_keywords = [k.strip() for k in keywords_input.split(",")]
+
+        blacklist_input = st.text_input("🚫 Wörter, die NICHT vorkommen dürfen (Komma-getrennt)")
+        blacklist_words = []
+        if blacklist_input:
+            blacklist_words = [w.strip() for w in blacklist_input.split(",")]
+
+        st.session_state["options"] = {
+            "selected_column": selected_column,
+            "languages": languages,
+            "tone": tone,
+            "seo_enabled": seo_enabled,
+            "seo_keywords": seo_keywords,
+            "blacklist_words": blacklist_words,
+        }
+
+# -------------------------------
+# Tab 3 – Ergebnis
+# -------------------------------
+with tab3:
+    st.title("📊 Ergebnis")
+
+    if "df" in st.session_state and "options" in st.session_state:
+        df = st.session_state["df"]
+        opts = st.session_state["options"]
+
+        if st.button("🚀 Starte Übersetzung"):
+            with st.spinner("Übersetze... bitte warten ⏳"):
+                for lang in opts["languages"]:
+                    df[f"Übersetzung_{lang}"] = df[opts["selected_column"]].apply(
+                        lambda text: translate_text(
+                            text,
+                            lang,
+                            opts["tone"],
+                            opts["seo_enabled"],
+                            opts["seo_keywords"],
+                            opts["blacklist_words"],
+                        )
+                    )
 
             st.success("✅ Übersetzung abgeschlossen!")
-            st.write(df.head())
+            st.dataframe(df)
 
-            output_file = "translated_output.xlsx"
+            output_file = "translated.xlsx"
             df.to_excel(output_file, index=False)
+
             with open(output_file, "rb") as f:
-                st.download_button("⬇️ Übersetzte Excel herunterladen", f, file_name=output_file)
+                st.download_button("📥 Übersetzte Datei herunterladen", f, file_name=output_file)
+    else:
+        st.info("⬅️ Bitte zuerst eine Datei hochladen und Optionen auswählen.")
