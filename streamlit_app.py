@@ -18,18 +18,25 @@ LANGUAGE_MAP = {
 def clean_text(text):
     if not isinstance(text, str):
         return ""
-    # Entferne alle Emojis, Sterne und Sonderzeichen außer Buchstaben, Zahlen, Satzzeichen
-    text = re.sub(r'[^\w\s.,!?;:()\'\"-]', '', text)
+    text = re.sub(r'[^\w\s.,!?;:()\'\"-]', '', text)  # Emojis & Sonderzeichen entfernen
     return text.strip()
 
-# Haupt-UI
-st.set_page_config(page_title="Produkt Übersetzer", layout="wide")
-
-tabs = st.tabs(["📂 Datei Upload", "⚙️ Optionen", "📊 Ergebnis"])
-
-# Session State vorbereiten
+# =====================
+# Session State Setup
+# =====================
 if "df" not in st.session_state:
     st.session_state.df = None
+if "translated_df" not in st.session_state:
+    st.session_state.translated_df = None
+if "active_tab" not in st.session_state:
+    st.session_state.active_tab = 0  # Start: Tab 1
+
+# =====================
+# Tab-Steuerung
+# =====================
+tab_labels = ["📂 Datei Upload", "⚙️ Optionen", "📊 Ergebnis"]
+active_tab = st.session_state.active_tab
+tabs = st.tabs(tab_labels)
 
 # =====================
 # TAB 1: Datei Upload
@@ -107,8 +114,9 @@ with tabs[1]:
 
             st.session_state.translated_df = df
 
-            # Automatische Weiterleitung auf Tab Ergebnis
-            st.session_state.goto_result = True
+            # 👉 automatisch Ergebnis-Tab öffnen
+            st.session_state.active_tab = 2
+            st.experimental_rerun()
 
 # =====================
 # TAB 3: Ergebnis
@@ -116,7 +124,7 @@ with tabs[1]:
 with tabs[2]:
     st.header("📊 Ergebnis der Übersetzung")
 
-    if "translated_df" in st.session_state:
+    if st.session_state.translated_df is not None:
         st.write("✅ Übersetzte Tabelle:")
         st.dataframe(st.session_state.translated_df)
 
@@ -125,8 +133,3 @@ with tabs[2]:
         st.session_state.translated_df.to_excel(output_file, index=False)
         with open(output_file, "rb") as f:
             st.download_button("📥 Übersetzte Datei herunterladen", f, file_name=output_file)
-
-# Automatisch Ergebnis-Tab öffnen
-if "goto_result" in st.session_state and st.session_state.goto_result:
-    st.query_params(tab="📊 Ergebnis")
-    st.session_state.goto_result = False
